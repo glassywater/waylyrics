@@ -213,6 +213,7 @@ fn build_ui(app: &Application) -> Result<()> {
         qqmusic,
         color_scheme,
         theme_dark_switch,
+        font_family,
     } = config;
 
     LYRIC_SEARCH_SKIP.store(skip_auto_search, Ordering::Release);
@@ -256,6 +257,7 @@ fn build_ui(app: &Application) -> Result<()> {
         length_toleration_ms,
         show_default_text_on_idle,
         show_lyric_on_pause,
+        &font_family,
         #[cfg(feature = "layer-shell")]
         layer_shell,
         #[cfg(feature = "layer-shell")]

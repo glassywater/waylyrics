@@ -146,6 +146,9 @@ pub struct Config {
 
     /// Whether to use <name>-dark.css when system is in dark mode
     pub theme_dark_switch: bool,
+
+    /// font family for lyrics display (e.g., "Sans", "Noto Sans CJK SC", "Microsoft YaHei")
+    pub font_family: String,
 }
 
 /// check [GTK+'s official document](https://docs.gtk.org/gtk4/ctor.ShortcutTrigger.parse_string.html) for trigger format
@@ -205,6 +208,7 @@ impl Default for Config {
             qqmusic: QQMusicConfig::default(),
             color_scheme: ColorScheme::default(),
             theme_dark_switch: false,
+            font_family: "Sans".into(),
         }
     }
 }

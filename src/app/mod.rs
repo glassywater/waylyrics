@@ -15,6 +15,9 @@ pub mod actions;
 pub mod dialog;
 pub mod utils;
 
+/// 当前正在显示的 ruby 行索引
+pub static CURRENT_RUBY_INDEX: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
 pub fn build_main_window(
     app: &Application,
     enable_filter_regex: bool,
@@ -22,6 +25,7 @@ pub fn build_main_window(
     length_toleration_ms: u128,
     show_default_text_on_idle: bool,
     show_lyric_on_pause: bool,
+    font_family: &str,
     #[cfg(feature = "layer-shell")] layer_shell: bool,
     #[cfg(feature = "layer-shell")] layer_shell_anchor: crate::config::LayerShellAnchor,
 ) -> Window {
@@ -70,6 +74,44 @@ pub fn build_main_window(
         utils::setup_label(label, enable_filter_regex);
     }
 
+    // 创建 ruby 注音绘制区域
+    let ruby_drawing_area = gtk::DrawingArea::builder()
+        .name("ruby")
+        .vexpand(true)
+        .hexpand(false)
+        .content_width(500)
+        .content_height(100)
+        .visible(false)
+        .build();
+
+    // 设置 draw 回调
+    let font_family_clone = font_family.to_string();
+    ruby_drawing_area.set_draw_func(move |_area, cr, width, height| {
+        // 获取当前的 ruby 数据并绘制
+        crate::sync::LYRIC.with_borrow(|lyric_state| {
+            if let Some(ref ruby_lines) = lyric_state.ruby {
+                let idx = CURRENT_RUBY_INDEX.load(std::sync::atomic::Ordering::Relaxed);
+                let ruby_line = ruby_lines.get(idx).or_else(|| ruby_lines.first());
+                if let Some(ruby_line) = ruby_line {
+                    utils::draw_ruby_text(
+                        cr,
+                        width,
+                        height,
+                        ruby_line,
+                        24.0, // 基础字号
+                        12.0, // 注音字号
+                        &font_family_clone,
+                        (1.0, 1.0, 1.0), // 白色文本
+                        (0.7, 0.7, 0.7), // 浅灰色注音
+                    );
+                }
+            }
+        });
+    });
+
+    // 存储 DrawingArea 引用
+    let _ = window.imp().ruby_drawing_area.set(ruby_drawing_area.clone());
+
     let verical_box = gtk::Box::builder()
         .name("lyrics-box")
         .baseline_position(gtk::BaselinePosition::Center)
@@ -81,7 +123,8 @@ pub fn build_main_window(
         .build();
 
     verical_box.insert_child_after(&above_label, gtk::Box::NONE);
-    verical_box.insert_child_after(&below_label, Some(&above_label));
+    verical_box.insert_child_after(&ruby_drawing_area, Some(&above_label));
+    verical_box.insert_child_after(&below_label, Some(&ruby_drawing_area));
 
     window.set_child(Some(&verical_box));
 
@@ -109,6 +152,11 @@ pub fn set_lyric_align(window: &Window, align: config::Align) -> Option<()> {
         label.set_justify(align.into());
     }
 
+    // 更新 ruby drawing area 的对齐
+    if let Some(ruby_da) = window.imp().ruby_drawing_area.get() {
+        ruby_da.set_halign(align.into());
+    }
+
     window.imp().lyric_align.set(align);
     Some(())
 }
@@ -128,4 +176,9 @@ pub fn get_label(window: &Window, position: &str) -> Label {
         .into_iter()
         .find(|label| label.widget_name() == position)
         .unwrap()
+}
+
+/// 获取 ruby 注音绘制区域
+pub fn get_ruby_drawing_area(window: &Window) -> Option<&gtk::DrawingArea> {
+    window.imp().ruby_drawing_area.get()
 }

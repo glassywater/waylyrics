@@ -134,3 +134,64 @@ pub fn setup_label(label: &Label, hide_filtered_words: bool) {
         });
     }
 }
+
+/// 绘制带 ruby 注音的文本
+///
+/// 在 Cairo 上下文中绘制日文歌词，汉字上方显示平假名注音
+pub fn draw_ruby_text(
+    cr: &gtk::cairo::Context,
+    width: i32,
+    height: i32,
+    ruby_line: &crate::lyric_providers::RubyLine,
+    base_font_size: f64,
+    ruby_font_size: f64,
+    font_family: &str,
+    text_color: (f64, f64, f64),
+    ruby_color: (f64, f64, f64),
+) {
+    let layout = pangocairo::functions::create_layout(cr);
+
+    // 计算总宽度用于居中
+    let full_text: String = ruby_line.segments.iter().map(|s| s.text.as_str()).collect();
+    let base_desc = pango::FontDescription::from_string(&format!("{} {}", font_family, base_font_size));
+    layout.set_font_description(Some(&base_desc));
+    layout.set_text(&full_text);
+    let (total_w, _) = layout.pixel_size();
+
+    let mut current_x = (width as f64 - total_w as f64) / 2.0;
+    let base_y = height as f64 / 2.0;
+
+    for segment in &ruby_line.segments {
+        // 测量基础文字宽度
+        let base_desc = pango::FontDescription::from_string(&format!("{} {}", font_family, base_font_size));
+        layout.set_font_description(Some(&base_desc));
+        layout.set_text(&segment.text);
+        let (base_w, _base_h) = layout.pixel_size();
+
+        // 绘制基础文字
+        cr.set_source_rgb(text_color.0, text_color.1, text_color.2);
+        cr.move_to(current_x, base_y);
+        pangocairo::functions::show_layout(cr, &layout);
+
+        // 如果有注音，在上方绘制
+        if let Some(ref reading) = segment.reading {
+            let ruby_desc = pango::FontDescription::from_string(&format!("{} {}", font_family, ruby_font_size));
+            layout.set_font_description(Some(&ruby_desc));
+            layout.set_text(reading);
+            let (ruby_w, ruby_h) = layout.pixel_size();
+
+            // 居中对齐注音到基础上方
+            let ruby_x = current_x + (base_w as f64 - ruby_w as f64) / 2.0;
+            let ruby_y = base_y - ruby_h as f64 - 2.0;
+
+            cr.set_source_rgb(ruby_color.0, ruby_color.1, ruby_color.2);
+            cr.move_to(ruby_x, ruby_y);
+            pangocairo::functions::show_layout(cr, &layout);
+
+            // 重置属性
+            layout.set_attributes(None);
+        }
+
+        current_x += base_w as f64;
+    }
+}
